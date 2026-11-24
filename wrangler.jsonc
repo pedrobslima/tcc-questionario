@@ -8,7 +8,7 @@
     {
       "binding": "DB",
       "database_name": "tcc_quest",
-      "database_id": "PREENCHER",
+      "database_id": "49c26314-9560-4597-8193-925469f9d9a3",
       "migrations_dir": "migrations"
     }
   ]
