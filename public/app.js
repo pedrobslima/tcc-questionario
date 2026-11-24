@@ -1,6 +1,6 @@
 // Questionário A/B: explicação m1 x m2 por item e-Fisco (query), formato "matriz completa".
 // Fluxo: boas-vindas (identificação + termo + perfil) -> tutorial -> 1 tela por item e-Fisco (escolha por item
-// Catmat + ordem A/B + geral, revisão e confirmação) -> finalizar. Estado no localStorage; envios por fila para o Worker.
+// Catmat + ordem A/B + entendimento do sistema (caixas de seleção), revisão e confirmação) -> finalizar. Estado no localStorage; envios por fila para o Worker.
 // Em /answers (public/answers.html) o mesmo script mostra, só para leitura, as respostas gravadas no servidor.
 (function () {
   "use strict";
@@ -11,7 +11,16 @@
   const CHOICES = [["A", "Explicação A"], ["B", "Explicação B"], ["empate", "Empate"], ["nao_sei", "Não sei responder"]];
   const LABEL = Object.fromEntries(CHOICES);
   const Q_ITEM = "Qual explicação (A ou B) deixa mais claro por que este item Catmat é similar ao item e-Fisco?";
-  const Q_GERAL = "No geral, qual explicação (A ou B) deixa mais claro por que os itens Catmat foram sugeridos para este item e-Fisco?";
+  // Última pergunta da tela, com caixas de seleção (coluna "entendimento" no D1) + comentário opcional.
+  // A e B podem ser marcadas juntas; "nenhuma" e "nao_sei" são exclusivas (desmarcam as outras).
+  const Q_ENT = "Quais explicações fazem você entender como o sistema chegou a estas sugestões, a ponto de confiar nelas ou de perceber se o sistema errou?";
+  const ENT = [["A", "Explicação A"], ["B", "Explicação B"], ["nenhuma", "Nenhuma das duas"], ["nao_sei", "Não sei responder"]];
+  const ENT_LABEL = Object.fromEntries(ENT), ENT_EXCL = ["nenhuma", "nao_sei"];
+  const entLabel = e => (e && e.length ? e.map(x => ENT_LABEL[x]).join(" e ") : "—");
+  // Lista marcada (A/B/nenhuma/nao_sei) <-> valor gravado (m1/m2/ambas/nenhuma/nao_sei).
+  const entToDb = (e, mA, mB) => (e.length === 2 ? "ambas" : e[0] === "A" ? mA : e[0] === "B" ? mB : e[0]);
+  const entFromDb = (v, mA) => (v === "ambas" ? ["A", "B"] : v === "m1" || v === "m2" ? [v === mA ? "A" : "B"] : v ? [v] : []);
+  const Q_COMENT = "Se quiser, explique sua resposta (opcional):";
   const Q_ORDEM = side => `As explicações ${side} deixam claro por que os itens Catmat podem ter sido sugeridos na ordem atual?`;
   const ORDEM = [["sim", "Sim, para todas as correspondências"], ["parcial", "Parcialmente, nem todas as correspondências"], ["nao", "Não ficou claro para nenhuma"], ["nao_sei", "Não sei responder"]];
   const ORDEM_LABEL = Object.fromEntries(ORDEM);
@@ -182,7 +191,7 @@
       if (i >= 0) itens[i] = toSide(r[`escolha_${k}`], r.metodo_A);
     }
     const mB = D.methods.find(m => m !== r.metodo_A);
-    return { itens, geral: toSide(r.geral, r.metodo_A), ordem: { A: r[`ordem_${r.metodo_A}`], B: r[`ordem_${mB}`] }, confirmado: true };
+    return { itens, entend: entFromDb(r.entendimento, r.metodo_A), comentario: r.entendimento_comentario || "", ordem: { A: r[`ordem_${r.metodo_A}`], B: r[`ordem_${mB}`] }, confirmado: true };
   }
 
   // ---------------- tutorial (tela inicial e pop-up do cabeçalho) ----------------
@@ -216,11 +225,11 @@
           <div class="foot"><button type="button" tabindex="-1" aria-pressed="true">Empate</button><button type="button" tabindex="-1">Não sei responder</button> ${n(2)}</div>
         </div>
         <ol class="legend">
-          <li>No item Catmat 1, a pessoa <b>clicou na explicação A</b>, que ficou marcada com “✓ escolhida”.</li>
+          <li>No item Catmat 1, a pessoa <b>clicou na explicação A</b>, que ficou marcada com “✓”.</li>
           <li>No item Catmat 2, as duas explicações pareceram equivalentes, então ela usou <b>Empate</b>. Se não conseguir avaliar, use <b>Não sei responder</b>.</li>
         </ol>
       </div></figure>`;
-    const steps = ["Escolher A, B, Empate ou Não sei em cada item Catmat", "Responder sobre a ordem dos itens (explicações A e B)", "Responder a pergunta geral", "Revisar e confirmar"];
+    const steps = ["Escolher A, B, Empate ou Não sei em cada item Catmat", "Responder sobre a ordem dos itens (explicações A e B)", "Marcar quais explicações ajudam a entender o sistema", "Revisar e confirmar"];
     const d3 = `<figure class="diagram"><figcaption>Diagrama 3: o que fazer em cada tela</figcaption>
       <div class="flow">${steps.map((t, i) => `<div class="step"><span class="badge">${i + 1}</span>${esc(t)}</div>`).join('<div class="arrow" aria-hidden="true">→</div>')}
         <div class="arrow" aria-hidden="true">→</div><div class="step muted">Próximo item e-Fisco</div></div></figure>`;
@@ -233,7 +242,7 @@
         <li>Termos com a <b>mesma cor</b> no item e-Fisco e no item Catmat estão relacionados entre si. Quanto mais forte a cor, maior a influência.</li>
         <li>Abaixo dos textos, cada linha resume uma relação: <span class="fmt">termo Catmat ← (+X) − termo e-Fisco</span>. X é o quanto essa relação aumenta (+) ou diminui (−) a pontuação de similaridade. Uma linha com um lado só indica um termo que influenciou sozinho.</li>
         <li>Em cada coluna, <b>clique na explicação (A ou B)</b> que deixa mais claro por que aquele item Catmat é similar ao item e-Fisco. Se as duas forem equivalentes, use <b>Empate</b>; se não conseguir avaliar, use <b>Não sei responder</b>.</li>
-        <li>Depois, diga se as explicações A e as explicações B deixam claro por que os itens Catmat podem ter sido sugeridos na ordem em que aparecem, e responda à pergunta geral sobre qual explicação foi melhor para o item e-Fisco como um todo.</li>
+        <li>Depois, diga se as explicações A e as explicações B deixam claro por que os itens Catmat podem ter sido sugeridos na ordem em que aparecem, e marque quais explicações fazem você entender como o sistema chegou às sugestões, a ponto de confiar nelas ou de perceber se ele errou (pode marcar as duas). Há um campo opcional para explicar sua resposta.</li>
         <li>Ao final de cada tela, você verá um resumo das suas respostas para confirmar. Você pode voltar a itens anteriores e mudar respostas até finalizar o questionário.</li>
       </ol>
       ${diagrams()}
@@ -255,11 +264,12 @@
   tutDlg.addEventListener("click", e => { if (e.target === tutDlg) tutDlg.close(); }); // clique fora fecha
 
   const ans = q => {
-    const a = (st.answers[q.id] = st.answers[q.id] || { itens: q.suggestions.map(() => null), geral: null, confirmado: false });
+    const a = (st.answers[q.id] = st.answers[q.id] || { itens: q.suggestions.map(() => null), confirmado: false });
+    a.entend = a.entend || []; // respostas locais anteriores às caixas de seleção
     a.ordem = a.ordem || { A: null, B: null }; // respostas locais anteriores à pergunta sobre a ordem
     return a;
   };
-  const complete = a => a.itens.every(Boolean) && a.geral && a.ordem && a.ordem.A && a.ordem.B;
+  const complete = a => a.itens.every(Boolean) && a.entend && a.entend.length && a.ordem && a.ordem.A && a.ordem.B;
 
   function question() {
     const q = D.queries[st.qi], a = ans(q), mA = st.sides[q.id], mB = D.methods.find(m => m !== mA);
@@ -271,8 +281,9 @@
       ${matrix(q, a, mA, mB, false)}
       ${["A", "B"].map(side => `<fieldset><legend>${esc(Q_ORDEM(side))}</legend><div class="opts">${ORDEM.map(([c, l]) =>
         `<label><input type="radio" name="ordem_${side}" value="${c}" ${a.ordem[side] === c ? "checked" : ""}> ${l}</label>`).join("")}</div></fieldset>`).join("")}
-      <fieldset><legend>${esc(Q_GERAL)}</legend><div class="opts">${CHOICES.map(([c, l]) =>
-        `<label><input type="radio" name="geral" value="${c}" ${a.geral === c ? "checked" : ""}> ${l}</label>`).join("")}</div></fieldset>
+      <fieldset><legend>${esc(Q_ENT)} <span class="muted">Marque todas que se aplicam.</span></legend><div class="opts">${ENT.map(([c, l]) =>
+        `<label><input type="checkbox" name="entend" value="${c}" ${a.entend.includes(c) ? "checked" : ""}> ${l}</label>`).join("")}</div>
+        <label class="field coment">${esc(Q_COMENT)}<textarea id="coment" rows="3" maxlength="2000">${esc(a.comentario || "")}</textarea></label></fieldset>
       <div class="row end"><button type="button" id="prev" ${st.qi === 0 ? "disabled" : ""}>← Item e-Fisco anterior</button>
         <span class="row"><span class="muted" id="miss"></span><button type="button" class="primary" id="rev">Revisar respostas</button></span></div>`;
     app.innerHTML = h;
@@ -281,11 +292,16 @@
       el.onclick = () => pick(el);
       el.onkeydown = e => { if (el.classList.contains("cell") && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); pick(el); } };
     });
-    app.querySelectorAll('input[name="geral"]').forEach(el => el.onchange = () => { a.geral = el.value; a.confirmado = false; save(); upd(); });
+    const ents = [...app.querySelectorAll('input[name="entend"]')];
+    ents.forEach(el => el.onchange = () => {
+      if (el.checked) ents.forEach(o => { if (o !== el && (ENT_EXCL.includes(el.value) || ENT_EXCL.includes(o.value))) o.checked = false; });
+      a.entend = ents.filter(o => o.checked).map(o => o.value); a.confirmado = false; save(); upd();
+    });
+    document.getElementById("coment").oninput = e => { a.comentario = e.target.value; a.confirmado = false; save(); };
     for (const side of ["A", "B"])
       app.querySelectorAll(`input[name="ordem_${side}"]`).forEach(el => el.onchange = () => { a.ordem[side] = el.value; a.confirmado = false; save(); upd(); });
     const upd = () => {
-      const miss = a.itens.filter(x => !x).length + (a.geral ? 0 : 1) + (a.ordem.A ? 0 : 1) + (a.ordem.B ? 0 : 1);
+      const miss = a.itens.filter(x => !x).length + (a.entend.length ? 0 : 1) + (a.ordem.A ? 0 : 1) + (a.ordem.B ? 0 : 1);
       document.getElementById("rev").disabled = miss > 0;
       document.getElementById("miss").textContent = miss ? `${miss} resposta(s) pendente(s)` : "";
     };
@@ -315,7 +331,8 @@
         ${q.suggestions.map((s, i) => `<tr><td>Item Catmat ${i + 1}: ${esc(s.text.length > 90 ? s.text.slice(0, 90) + "…" : s.text)}</td><td><b>${LABEL[a.itens[i]]}</b></td></tr>`).join("")}
         <tr><td>Ordem: explicações A</td><td><b>${ORDEM_LABEL[a.ordem.A]}</b></td></tr>
         <tr><td>Ordem: explicações B</td><td><b>${ORDEM_LABEL[a.ordem.B]}</b></td></tr>
-        <tr><td>Geral</td><td><b>${LABEL[a.geral]}</b></td></tr></tbody></table>
+        <tr><td>Entendimento do sistema</td><td><b>${entLabel(a.entend)}</b></td></tr>
+        <tr><td>Comentário</td><td class="coment-txt">${a.comentario && a.comentario.trim() ? esc(a.comentario.trim()) : '<span class="muted">(sem comentário)</span>'}</td></tr></tbody></table>
       <div class="row"><button type="button" id="back">Voltar e alterar</button><button type="button" class="primary" id="ok">Confirmar</button></div>
     </section>`;
     document.getElementById("back").onclick = () => { reviewing = false; render(); };
@@ -323,7 +340,7 @@
       const mA = st.sides[q.id], mB = D.methods.find(m => m !== mA), res = c => (c === "A" ? mA : c === "B" ? mB : c);
       a.confirmado = true;
       send({ tipo: "resposta", uuid: st.uuid, query_id: q.id, metodo_A: mA,
-             itens: q.suggestions.map((s, i) => ({ rank: s.rank, escolha: res(a.itens[i]) })), geral: res(a.geral),
+             itens: q.suggestions.map((s, i) => ({ rank: s.rank, escolha: res(a.itens[i]) })), entendimento: entToDb(a.entend, mA, mB), entendimento_comentario: (a.comentario || "").trim(),
              ordem_m1: a.ordem[toSide("m1", mA)], ordem_m2: a.ordem[toSide("m2", mA)] });
       reviewing = false;
       if (st.qi < D.queries.length - 1) st.qi++; else st.stage = "final";
@@ -380,7 +397,8 @@
       const a = rowToAnswer(q, r), mB = D.methods.find(m => m !== r.metodo_A);
       h += matrix(q, a, r.metodo_A, mB, true)
         + ["A", "B"].map(side => `<p><b>${esc(Q_ORDEM(side))}</b> ${esc(ORDEM_LABEL[a.ordem[side]] || "—")}</p>`).join("")
-        + `<p><b>${esc(Q_GERAL)}</b> ${esc(LABEL[a.geral] || "—")}</p></section>`;
+        + `<p><b>${esc(Q_ENT)}</b> ${esc(entLabel(a.entend))}</p>`
+        + (a.comentario ? `<p><b>Comentário:</b> <span class="coment-txt">${esc(a.comentario)}</span></p>` : "") + `</section>`;
     });
     app.innerHTML = h;
   }

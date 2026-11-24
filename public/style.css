@@ -45,7 +45,7 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2
 .colhead span { color: var(--muted); font-weight: 400; font-family: var(--font-mono); font-size: 12px; }
 .cell { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; min-width: 0; align-content: start; cursor: pointer; position: relative; }
 .cell[aria-pressed="true"] { border-color: var(--sel); box-shadow: 0 0 0 2px var(--sel); }
-.cell[aria-pressed="true"]::after { content: "✓ escolhida"; position: absolute; top: 6px; right: 8px; font-size: 11px; font-weight: 600; color: var(--sel); }
+.cell[aria-pressed="true"]::after { content: "✓"; position: absolute; top: 4px; right: 8px; font-size: 15px; font-weight: 600; color: var(--sel); }
 .foot { display: flex; flex-wrap: wrap; gap: 6px; }
 .foot button { font-size: 13px; padding: 3px 10px; }
 .foot button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
@@ -100,3 +100,7 @@ a { color: var(--accent); }
 .step { display: flex; gap: 6px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; max-width: 200px; }
 .arrow { color: var(--muted); font-size: 18px; }
 .cell .txt + .txt { border-top: 1px solid var(--line); padding-top: 6px; }
+label.field.coment { margin-top: 10px; font-weight: 500; }
+label.field.coment textarea { font-weight: 400; }
+.coment-txt { white-space: pre-wrap; }
+textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; resize: vertical; }

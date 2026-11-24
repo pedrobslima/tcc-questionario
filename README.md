@@ -56,6 +56,8 @@ Para recomeçar como um participante novo, apague a chave `tcc-questionario-v1` 
   - `metodo_A` diz qual método ficou no lado A.
   - `escolha_i` e `geral` valem `m1`, `m2`, `empate` ou `nao_sei`, já convertidos do lado A/B para o método.
   - `rank_i` é o rank original do item Catmat.
+  - `entendimento` (migração `0004`) é a última pergunta da tela, com caixas de seleção: "Quais explicações fazem você entender como o sistema chegou a estas sugestões, a ponto de confiar nelas ou de perceber se o sistema errou?". Valores: `m1`, `m2`, `ambas`, `nenhuma` ou `nao_sei`. `entendimento_comentario` é o comentário opcional, `NULL` se vazio.
+  - `geral` é a pergunta antiga ("No geral, qual explicação deixa mais claro por que os itens Catmat foram sugeridos?"). Só existe nas respostas gravadas antes da migração `0004`. Nas novas fica `NULL`.
   - `ordem_m1` e `ordem_m2`: se as explicações do método deixam claro por que os itens Catmat podem ter sido sugeridos na ordem atual. Valores: `sim` (para todas as correspondências), `parcial` (nem todas) `nao` (para nenhuma) ou `nao_sei` (não sei responder). A pergunta é feita para os lados A e B, e a resposta é gravada já convertida para o método. Respostas gravadas antes da migração `0003` ficam com `NULL`.
   - Se a pessoa voltar e mudar uma resposta, a mesma linha é atualizada.
   - Datas em ISO 8601 (UTC).
