@@ -1,10 +1,13 @@
 // Questionário A/B: explicação m1 x m2 por item e-Fisco (query), formato "matriz completa".
-// Fluxo: boas-vindas (termo + perfil) -> tutorial -> 1 tela por item e-Fisco (escolha por item Catmat + geral,
-// revisão e confirmação) -> finalizar. Estado no localStorage; envios por fila para o Apps Script.
+// Fluxo: boas-vindas (identificação + termo + perfil) -> tutorial -> 1 tela por item e-Fisco (escolha por item
+// Catmat + geral, revisão e confirmação) -> finalizar. Estado no localStorage; envios por fila para o Worker.
+// Em /answers (public/answers.html) o mesmo script mostra, só para leitura, as respostas gravadas no servidor.
 (function () {
   "use strict";
   const KEY = "tcc-questionario-v1";
-  const ENDPOINT = (window.QUESTIONARIO_CONFIG || {}).endpoint || "";
+  const API = (window.QUESTIONARIO_CONFIG || {}).api || "";
+  const ENDPOINT = API && API + "/enviar";
+  const ANSWERS = location.pathname.replace(/\/+$/, "").endsWith("/answers");
   const CHOICES = [["A", "Explicação A"], ["B", "Explicação B"], ["empate", "Empate"], ["nao_sei", "Não sei responder"]];
   const LABEL = Object.fromEntries(CHOICES);
   const Q_ITEM = "Qual explicação (A ou B) deixa mais claro por que este item Catmat é similar ao item e-Fisco?";
@@ -38,7 +41,7 @@
       break;
     }
     flushing = false;
-    showNet();
+    if (D && !ANSWERS && st.stage === "done") render(); else showNet(); // tela final mostra o link quando a fila esvazia
   }
   function showNet() {
     const n = st.pending.length;
@@ -80,13 +83,15 @@
     });
     return `<div class="lat">${lines.length ? lines.map(l => `<div class="ln">${l}</div>`).join("") : '<div class="none">sem relações</div>'}</div>`;
   }
-  function cell(q, s, m, side, i, chosen) {
+  function cell(q, s, m, side, i, chosen, ro) {
     const groups = s.by[m], sty = styles(groups), sq = [], ss = [];
     for (const g of groups) {
       if (g.q) for (const [a, b] of g.q.sp) sq.push([a, b, g.o]);
       for (const t of g.s) for (const [a, b] of t.sp) ss.push([a, b, g.o]);
     }
-    return `<div class="cell" role="button" tabindex="0" aria-pressed="${chosen}" data-i="${i}" data-c="${side}" aria-label="Escolher explicação ${side} para o item Catmat ${i + 1}">
+    const attrs = ro ? `aria-label="Explicação ${side} do item Catmat ${i + 1}${chosen ? " (escolhida)" : ""}"`
+      : `role="button" tabindex="0" aria-label="Escolher explicação ${side} para o item Catmat ${i + 1}"`;
+    return `<div class="cell" ${attrs} aria-pressed="${chosen}" data-i="${i}" data-c="${side}">
       <div class="txt"><b>e-Fisco</b>${hl(q.text, sq, sty)}</div><div class="txt"><b>Catmat</b>${hl(s.text, ss, sty)}</div>${lateral(groups, sty)}</div>`;
   }
 
@@ -97,24 +102,69 @@
       <h2>Bem-vindo(a)</h2>
       <p>Esta pesquisa faz parte de um trabalho de conclusão de curso sobre explicações para a similaridade entre itens de compras públicas. Você vai comparar duas explicações (A e B) para itens Catmat sugeridos a partir de itens do e-Fisco.</p>
       <p class="muted">São ${D.queries.length} itens e-Fisco, cada um com ${D.queries[0].suggestions.length} itens Catmat. Recomendamos usar um computador (a tela precisa de pelo menos 1000 px de largura).</p>
+      <div class="box"><div class="lbl">Antes de começar</div><ul>
+        <li>O preenchimento deve levar no máximo <b>10 minutos</b>.</li>
+        <li>Seu progresso fica salvo e pode ser retomado depois, desde que você use <b>o mesmo dispositivo e o mesmo navegador</b> (por exemplo, Chrome, Safari ou Firefox). Em outro dispositivo ou navegador, não será possível continuar.</li>
+        <li>Não avalie se o item Catmat sugerido é uma boa correspondência para o item e-Fisco. Avalie apenas <b>as explicações</b>: qual delas deixa mais claro por que o item foi sugerido.</li>
+      </ul></div>
+      <label class="field">Nome completo<input type="text" id="nome" autocomplete="name" maxlength="200"></label>
+      <label class="field">Data de nascimento<input type="date" id="nasc" min="1900-01-01" max="${new Date().toISOString().slice(0, 10)}"></label>
       <label class="field">A qual secretaria do estado você pertence?<input type="text" id="sec" autocomplete="off" maxlength="200"></label>
       <fieldset><legend>Você está familiarizado(a) com a montagem de mapa de preços?</legend><div class="opts">
         <label><input type="radio" name="fam" value="sim"> Sim</label><label><input type="radio" name="fam" value="nao"> Não</label></div></fieldset>
-      <label class="check"><input type="checkbox" id="ok"><span>Aceito que apenas as respostas às perguntas feitas sejam utilizadas para a análise dos resultados da pesquisa, e entendo que nenhuma informação que possa ser usada para a minha identificação real será armazenada.</span></label>
-      <div class="row"><button type="button" class="primary" id="go" disabled>Aceitar e começar</button></div>
+      <div class="box"><div class="lbl">Termo de consentimento</div><p>Os dados coletados por meio deste questionário poderão ser utilizados na análise dos resultados desta pesquisa acadêmica, bem como em pesquisas futuras dela derivadas. As informações que permitam a identificação dos participantes não serão divulgadas nem compartilhadas com terceiros. Os resultados obtidos poderão ser publicados e referenciados em trabalhos acadêmicos.</p></div>
+      <label class="check"><input type="checkbox" id="ok"><span>Declaro que li e concordo com os termos acima.</span></label>
+      <div class="row"><button type="button" class="primary" id="go" disabled>Aceitar e começar</button><span class="warn" id="err"></span></div>
     </section>`;
-    const sec = document.getElementById("sec"), ok = document.getElementById("ok"), go = document.getElementById("go");
+    const $ = id => document.getElementById(id);
+    const sec = $("sec"), nome = $("nome"), nasc = $("nasc"), ok = $("ok"), go = $("go"), err = $("err");
     const fam = () => (app.querySelector('input[name="fam"]:checked') || {}).value;
-    const check = () => { go.disabled = !(ok.checked && sec.value.trim() && fam()); };
+    const check = () => { go.disabled = !(ok.checked && sec.value.trim() && nome.value.trim().length >= 3 && nasc.value && fam()); };
     app.querySelectorAll("input").forEach(el => el.addEventListener("input", check));
     app.querySelectorAll("input").forEach(el => el.addEventListener("change", check));
-    go.onclick = () => {
-      st.uuid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
-      for (const q of D.queries) st.sides[q.id] = Math.random() < 0.5 ? D.methods[0] : D.methods[1]; // método mostrado como A
-      st.stage = "tutorial"; save();
-      send({ tipo: "participante", uuid: st.uuid, secretaria: sec.value.trim(), familiarizado: fam(), consentimento: true });
-      render();
+    go.onclick = async () => {
+      go.disabled = true; err.textContent = "";
+      // O uuid é guardado antes do envio: se a resposta se perder e a pessoa clicar de novo, o mesmo uuid é reenviado.
+      st.novoUuid = st.novoUuid || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
+      save();
+      const novo = st.novoUuid;
+      let body = null;
+      try {
+        const res = await fetch(API + "/entrar", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uuid: novo, nome: nome.value.trim(), nascimento: nasc.value, secretaria: sec.value.trim(),
+                                 familiarizado: fam(), consentimento: true }) });
+        try { body = await res.json(); } catch (e) {}
+        if (body && body.erro === "067") { app.innerHTML = '<p class="warn">[067] Erro ao carregar o questionário</p>'; return; }
+        if (!(res.ok && body && body.ok)) throw new Error(`servidor recusou (${res.status}${body && body.erro ? ": " + body.erro : ""})`);
+        st.uuid = body.uuid;
+        delete st.novoUuid;
+        if (body.finalizado) { st.stage = "done"; save(); location.assign("/answers"); return; }
+        sortSides(); st.stage = "tutorial";
+      } catch (e) {
+        err.textContent = `Não foi possível entrar: ${e.message === "Failed to fetch" ? "sem conexão com o servidor" : e.message}`;
+        check(); return;
+      }
+      save(); render();
     };
+  }
+
+  // Lado A/B por item e-Fisco: o método mostrado como A. Só sorteia itens que ainda não têm lado.
+  function sortSides() { for (const q of D.queries) if (!st.sides[q.id]) st.sides[q.id] = Math.random() < 0.5 ? D.methods[0] : D.methods[1]; }
+  const toSide = (m, mA) => (m === mA ? "A" : D.methods.includes(m) ? "B" : m);
+  async function fetchAnswers() {
+    const res = await fetch(`${API}/respostas?uuid=${encodeURIComponent(st.uuid)}`);
+    let body = null; try { body = await res.json(); } catch (e) {}
+    if (!(res.ok && body && body.ok)) throw new Error(`servidor recusou (${res.status}${body && body.erro ? ": " + body.erro : ""})`);
+    return body;
+  }
+  // Converte uma linha da tabela respostas para o formato local (A/B na ordem das sugestões).
+  function rowToAnswer(q, r) {
+    const itens = q.suggestions.map(() => null);
+    for (const k of [1, 2, 3]) {
+      const i = q.suggestions.findIndex(s => s.rank === r[`rank_${k}`]);
+      if (i >= 0) itens[i] = toSide(r[`escolha_${k}`], r.metodo_A);
+    }
+    return { itens, geral: toSide(r.geral, r.metodo_A), confirmado: true };
   }
 
   function tutorial() {
@@ -146,15 +196,7 @@
     let h = `<div class="box"><div class="lbl">Item e-Fisco</div><div class="txt">${esc(q.text)}</div></div>
       <p><b>${esc(Q_ITEM)}</b> <span class="muted">Clique na célula da explicação escolhida, ou use os botões abaixo de cada coluna.</span></p>
       <p class="narrow">Sua tela é estreita: role para o lado para ver todos os itens Catmat.</p>
-      <div class="scroll"><div class="matrix"><div></div>`;
-    h += q.suggestions.map((s, i) => `<div class="colhead">Item Catmat ${i + 1} <span>· score ${num1(s.score)}</span></div>`).join("");
-    for (const [side, m] of [["A", mA], ["B", mB]]) {
-      h += `<div class="rowlabel">Explicação ${side}</div>`;
-      h += q.suggestions.map((s, i) => cell(q, s, m, side, i, a.itens[i] === side)).join("");
-    }
-    h += `<div></div>` + q.suggestions.map((s, i) => `<div class="foot">${CHOICES.slice(2).map(([c, l]) =>
-      `<button type="button" data-i="${i}" data-c="${c}" aria-pressed="${a.itens[i] === c}">${l}</button>`).join("")}</div>`).join("");
-    h += `</div></div>
+      ${matrix(q, a, mA, mB, false)}
       <fieldset><legend>${esc(Q_GERAL)}</legend><div class="opts">${CHOICES.map(([c, l]) =>
         `<label><input type="radio" name="geral" value="${c}" ${a.geral === c ? "checked" : ""}> ${l}</label>`).join("")}</div></fieldset>
       <div class="row end"><button type="button" id="prev" ${st.qi === 0 ? "disabled" : ""}>← Item e-Fisco anterior</button>
@@ -174,6 +216,19 @@
     upd();
     document.getElementById("prev").onclick = () => { st.qi--; save(); render(); scrollTo(0, 0); };
     document.getElementById("rev").onclick = () => { reviewing = true; render(); scrollTo(0, 0); };
+  }
+
+  // Matriz 2 (A/B) x itens Catmat. ro = só leitura (página /answers).
+  function matrix(q, a, mA, mB, ro) {
+    let h = `<div class="scroll"><div class="matrix${ro ? " ro" : ""}"><div></div>`;
+    h += q.suggestions.map((s, i) => `<div class="colhead">Item Catmat ${i + 1} <span>· score ${num1(s.score)}</span></div>`).join("");
+    for (const [side, m] of [["A", mA], ["B", mB]]) {
+      h += `<div class="rowlabel">Explicação ${side}</div>`;
+      h += q.suggestions.map((s, i) => cell(q, s, m, side, i, a.itens[i] === side, ro)).join("");
+    }
+    h += `<div></div>` + q.suggestions.map((s, i) => `<div class="foot">${CHOICES.slice(2).map(([c, l]) =>
+      `<button type="button" data-i="${i}" data-c="${c}" aria-pressed="${a.itens[i] === c}" ${ro ? "disabled" : ""}>${l}</button>`).join("")}</div>`).join("");
+    return h + `</div></div>`;
   }
 
   function review(q, a) {
@@ -215,7 +270,8 @@
     progress.textContent = "";
     app.innerHTML = `<section class="panel"><h2>Obrigado pela participação!</h2>
       <p>Suas respostas foram registradas. Este questionário só pode ser respondido uma vez.</p>
-      ${st.pending.length ? '<p class="warn">Ainda há respostas aguardando envio. Mantenha esta página aberta com internet até a mensagem no canto da tela sumir.</p>' : ""}</section>`;
+      ${st.pending.length ? '<p class="warn">Ainda há respostas aguardando envio. Mantenha esta página aberta com internet até a mensagem no canto da tela sumir.</p>'
+        : '<div class="row"><a class="btn" href="/answers">Rever minhas respostas</a></div>'}</section>`;
   }
 
   function render() {
@@ -223,6 +279,36 @@
     showNet();
   }
 
-  fetch("data.json").then(r => r.json()).then(d => { D = d; render(); flush(); })
+  // ---------------- /answers: respostas gravadas no servidor, só leitura ----------------
+  async function answersPage() {
+    progress.textContent = "Suas respostas";
+    if (!st.uuid) {
+      app.innerHTML = `<section class="panel"><p>Nenhum participante identificado neste navegador.</p><div class="row"><a class="btn" href="/">Ir para o questionário</a></div></section>`;
+      return;
+    }
+    let body;
+    try { body = await fetchAnswers(); }
+    catch (e) { app.innerHTML = `<p class="warn">Não foi possível carregar suas respostas (${esc(e.message === "Failed to fetch" ? "sem conexão com o servidor" : e.message)}). Recarregue a página.</p>`; return; }
+    if (!body.finalizado) { location.replace("/"); return; }
+    const rows = new Map(body.respostas.map(r => [r.query_id, r]));
+    let h = `<section class="panel"><h2>Suas respostas</h2><p>O questionário já foi finalizado. Estas são as respostas registradas; elas não podem mais ser alteradas.</p></section>`;
+    D.queries.forEach((q, n) => {
+      const r = rows.get(q.id);
+      h += `<section class="answer"><h3>Item e-Fisco ${n + 1} de ${D.queries.length}</h3>
+        <div class="box"><div class="lbl">Item e-Fisco</div><div class="txt">${esc(q.text)}</div></div>`;
+      if (!r) { h += `<p class="warn">Sem resposta registrada.</p></section>`; return; }
+      const a = rowToAnswer(q, r), mB = D.methods.find(m => m !== r.metodo_A);
+      h += matrix(q, a, r.metodo_A, mB, true) + `<p><b>${esc(Q_GERAL)}</b> ${esc(LABEL[a.geral] || "—")}</p></section>`;
+    });
+    app.innerHTML = h;
+  }
+
+  fetch("/data.json").then(r => r.json()).then(d => {
+    D = d;
+    if (ANSWERS) { answersPage(); flush(); return; }
+    // Já finalizou e não há envio pendente: vai direto para a revisão.
+    if (st.stage === "done" && !st.pending.length) { location.replace("/answers"); return; }
+    render(); flush();
+  })
     .catch(() => { app.innerHTML = '<p class="warn">Não foi possível carregar o questionário. Recarregue a página.</p>'; });
 })();

@@ -11,7 +11,12 @@ Execute a partir de `~/pog/tcc`:
 O script gera `public/data.json` com 20 itens e-Fisco × 3 itens Catmat e top 3 por explicação. O mapeamento m1/m2 → método fica no próprio script.
 
 ## 2. Banco (Cloudflare D1)
-As respostas são gravadas pelo Worker (`src/worker.js`, rota `POST /api/enviar`) num banco D1. O esquema está em `migrations/`.
+As respostas são gravadas pelo Worker (`src/worker.js`) num banco D1. O esquema está em `migrations/`. Rotas:
+- `POST /api/entrar`: registra o participante (nome completo + data de nascimento + perfil) com o uuid gerado no navegador. Se o par nome + data já existe com outro uuid (nome comparado sem acentos, maiúsculas ou espaços repetidos), responde 500 `{erro:"067"}`, e o site mostra "[067] Erro ao carregar o questionário". O código 067 indica alguém tentando entrar de novo com uma identidade já registrada, e essa tentativa não é gravada.
+- `GET /api/respostas?uuid=...`: respostas gravadas, usadas pela página `/answers`.
+- `POST /api/enviar`: fila de respostas e de finalização.
+
+Quem já finalizou e volta ao site **no mesmo navegador** (mesmo uuid no localStorage) é levado para `/answers` (`public/answers.html`), que mostra as respostas só para leitura.
 Os comandos usam o Node do nvm (`source ~/.nvm/nvm.sh`) e rodam a partir de `tcc-questionario/`:
 
     npx wrangler login
@@ -46,7 +51,7 @@ Este teste roda o site e o Worker com um D1 local, que fica em `.wrangler/` e es
 Para recomeçar como um participante novo, apague a chave `tcc-questionario-v1` do localStorage.
 
 ## Dados gravados (tabelas do D1)
-- **participantes:** uuid, secretaria, familiarizado (sim/nao), consentimento, criado_em, finalizado_em.
+- **participantes:** uuid, nome (como foi digitado na primeira entrada), nome_chave (normalizado), nascimento (AAAA-MM-DD), secretaria, familiarizado (sim/nao), consentimento, criado_em, finalizado_em. O par (nome_chave, nascimento) é único.
 - **respostas:** uma linha por (uuid, item e-Fisco).
   - `metodo_A` diz qual método ficou no lado A.
   - `escolha_i` e `geral` valem `m1`, `m2`, `empate` ou `nao_sei`, já convertidos do lado A/B para o método.

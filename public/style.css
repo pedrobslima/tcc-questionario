@@ -65,3 +65,7 @@ table.review td, table.review th { border-bottom: 1px solid var(--line); padding
 .warn { color: var(--warn); }
 .net { position: fixed; bottom: 12px; right: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
 ol, ul { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
+.matrix.ro .cell { cursor: default; }
+.answer { display: grid; gap: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+a.btn { display: inline-block; font: inherit; text-decoration: none; background: var(--accent); color: var(--accent-fg); border: 1px solid var(--accent); border-radius: 6px; padding: 6px 14px; font-weight: 500; }
+input[type=date] { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: min(100%, 220px); }
