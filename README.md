@@ -15,8 +15,8 @@ As respostas são gravadas pelo Worker (`src/worker.js`, rota `POST /api/enviar`
 Os comandos usam o Node do nvm (`source ~/.nvm/nvm.sh`) e rodam a partir de `tcc-questionario/`:
 
     npx wrangler login
-    npx wrangler d1 create tcc-questionario        # copie o database_id para wrangler.jsonc
-    npx wrangler d1 migrations apply tcc-questionario --remote
+    npx wrangler d1 create tcc_quest        # copie o database_id para wrangler.jsonc
+    npx wrangler d1 migrations apply tcc_quest --remote
 
 O site só tira um envio da fila local quando o Worker responde `{ok:true}`. Se houver qualquer falha, aparece um aviso no canto da tela com o motivo.
 
@@ -26,7 +26,7 @@ O site só tira um envio da fila local quando o Worker responde `{ok:true}`. Se 
 Pelo painel:
 1. Abra **Workers & Pages → Create → Import a repository** e escolha este repositório.
 2. Deixe o **Build command** vazio e use o **Deploy command** `npx wrangler deploy`.
-3. Cada push na `main` dispara um deploy novo. A URL fica no formato `tcc-questionario.<subdominio>.workers.dev`.
+3. Cada push na `main` dispara um deploy novo. A URL fica no formato `sts-xai-questionario.<subdominio>.workers.dev`.
 
 Pela linha de comando:
 
@@ -34,13 +34,13 @@ Pela linha de comando:
 
 ## Exportar os resultados
 
-    npx wrangler d1 export tcc-questionario --remote --output respostas.sql                                  # backup completo
-    npx wrangler d1 execute tcc-questionario --remote --json --command "SELECT * FROM respostas" > respostas.json
+    npx wrangler d1 export tcc_quest --remote --output respostas.sql                                  # backup completo
+    npx wrangler d1 execute tcc_quest --remote --json --command "SELECT * FROM respostas" > respostas.json
 
 ## Teste local
 Este teste roda o site e o Worker com um D1 local, que fica em `.wrangler/` e está no `.gitignore`:
 
-    npx wrangler d1 migrations apply tcc-questionario --local
+    npx wrangler d1 migrations apply tcc_quest --local
     npx wrangler dev                                  # http://localhost:8787
 
 Para recomeçar como um participante novo, apague a chave `tcc-questionario-v1` do localStorage.
