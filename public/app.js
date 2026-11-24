@@ -1,6 +1,6 @@
 // Questionário A/B: explicação m1 x m2 por item e-Fisco (query), formato "matriz completa".
 // Fluxo: boas-vindas (identificação + termo + perfil) -> tutorial -> 1 tela por item e-Fisco (escolha por item
-// Catmat + geral, revisão e confirmação) -> finalizar. Estado no localStorage; envios por fila para o Worker.
+// Catmat + ordem A/B + geral, revisão e confirmação) -> finalizar. Estado no localStorage; envios por fila para o Worker.
 // Em /answers (public/answers.html) o mesmo script mostra, só para leitura, as respostas gravadas no servidor.
 (function () {
   "use strict";
@@ -12,7 +12,11 @@
   const LABEL = Object.fromEntries(CHOICES);
   const Q_ITEM = "Qual explicação (A ou B) deixa mais claro por que este item Catmat é similar ao item e-Fisco?";
   const Q_GERAL = "No geral, qual explicação (A ou B) deixa mais claro por que os itens Catmat foram sugeridos para este item e-Fisco?";
+  const Q_ORDEM = side => `As explicações ${side} deixam claro por que os itens Catmat podem ter sido sugeridos na ordem atual?`;
+  const ORDEM = [["sim", "Sim, para todas as correspondências"], ["parcial", "Parcialmente, nem todas as correspondências"], ["nao", "Não ficou claro para nenhuma"], ["nao_sei", "Não sei responder"]];
+  const ORDEM_LABEL = Object.fromEntries(ORDEM);
   const app = document.getElementById("app"), progress = document.getElementById("progress"), net = document.getElementById("net");
+  const tutBtn = document.getElementById("tut-btn"), tutDlg = document.getElementById("tut-dlg");
   let D = null, reviewing = false;
 
   // ---------------- estado ----------------
@@ -92,7 +96,7 @@
     const attrs = ro ? `aria-label="Explicação ${side} do item Catmat ${i + 1}${chosen ? " (escolhida)" : ""}"`
       : `role="button" tabindex="0" aria-label="Escolher explicação ${side} para o item Catmat ${i + 1}"`;
     return `<div class="cell" ${attrs} aria-pressed="${chosen}" data-i="${i}" data-c="${side}">
-      <div class="txt"><b>e-Fisco</b>${hl(q.text, sq, sty)}</div><div class="txt"><b>Catmat</b>${hl(s.text, ss, sty)}</div>${lateral(groups, sty)}</div>`;
+      <div class="txt"><b>e-Fisco:\n</b>${hl(q.text, sq, sty)}</div><div class="txt"><b>Catmat:\n</b>${hl(s.text, ss, sty)}</div>${lateral(groups, sty)}</div>`;
   }
 
   // ---------------- telas ----------------
@@ -101,25 +105,38 @@
     app.innerHTML = `<section class="panel">
       <h2>Bem-vindo(a)</h2>
       <p>Esta pesquisa faz parte de um trabalho de conclusão de curso sobre explicações para a similaridade entre itens de compras públicas. Você vai comparar duas explicações (A e B) para itens Catmat sugeridos a partir de itens do e-Fisco.</p>
-      <p class="muted">São ${D.queries.length} itens e-Fisco, cada um com ${D.queries[0].suggestions.length} itens Catmat. Recomendamos usar um computador (a tela precisa de pelo menos 1000 px de largura).</p>
-      <div class="box"><div class="lbl">Antes de começar</div><ul>
+      <p>Pesquisador responsável: <b>Pedro Barros de Souza Lima</b>. Contato: <a href="mailto:pbsl@cin.ufpe.br">pbsl@cin.ufpe.br</a>.</p>
+      <p class="muted">São ${D.queries.length} itens e-Fisco, cada um com ${D.queries[0].suggestions.length} itens Catmat. Recomenda-se usar um computador (a tela precisa de pelo menos 1000 px de largura).</p>
+      <div class="box notice"><div class="lbl">Antes de começar</div><ul>
         <li>O preenchimento deve levar no máximo <b>10 minutos</b>.</li>
         <li>Seu progresso fica salvo e pode ser retomado depois, desde que você use <b>o mesmo dispositivo e o mesmo navegador</b> (por exemplo, Chrome, Safari ou Firefox). Em outro dispositivo ou navegador, não será possível continuar.</li>
         <li>Não avalie se o item Catmat sugerido é uma boa correspondência para o item e-Fisco. Avalie apenas <b>as explicações</b>: qual delas deixa mais claro por que o item foi sugerido.</li>
       </ul></div>
       <label class="field">Nome completo<input type="text" id="nome" autocomplete="name" maxlength="200"></label>
-      <label class="field">Data de nascimento<input type="date" id="nasc" min="1900-01-01" max="${new Date().toISOString().slice(0, 10)}"></label>
+      <label class="field">Data de nascimento<input type="text" id="nasc" inputmode="numeric" autocomplete="bday" placeholder="dd/mm/aaaa" maxlength="10"></label>
       <label class="field">A qual secretaria do estado você pertence?<input type="text" id="sec" autocomplete="off" maxlength="200"></label>
       <fieldset><legend>Você está familiarizado(a) com a montagem de mapa de preços?</legend><div class="opts">
         <label><input type="radio" name="fam" value="sim"> Sim</label><label><input type="radio" name="fam" value="nao"> Não</label></div></fieldset>
-      <div class="box"><div class="lbl">Termo de consentimento</div><p>Os dados coletados por meio deste questionário poderão ser utilizados na análise dos resultados desta pesquisa acadêmica, bem como em pesquisas futuras dela derivadas. As informações que permitam a identificação dos participantes não serão divulgadas nem compartilhadas com terceiros. Os resultados obtidos poderão ser publicados e referenciados em trabalhos acadêmicos.</p></div>
+      <div class="box notice"><div class="lbl">Termo de consentimento</div><p>Os dados coletados por meio deste questionário poderão ser utilizados na análise dos resultados desta pesquisa acadêmica, bem como em pesquisas futuras dela derivadas. As informações que permitam a identificação dos participantes não serão divulgadas nem compartilhadas com terceiros. Os resultados obtidos poderão ser publicados e referenciados em trabalhos acadêmicos.</p></div>
       <label class="check"><input type="checkbox" id="ok"><span>Declaro que li e concordo com os termos acima.</span></label>
       <div class="row"><button type="button" class="primary" id="go" disabled>Aceitar e começar</button><span class="warn" id="err"></span></div>
     </section>`;
     const $ = id => document.getElementById(id);
     const sec = $("sec"), nome = $("nome"), nasc = $("nasc"), ok = $("ok"), go = $("go"), err = $("err");
     const fam = () => (app.querySelector('input[name="fam"]:checked') || {}).value;
-    const check = () => { go.disabled = !(ok.checked && sec.value.trim() && nome.value.trim().length >= 3 && nasc.value && fam()); };
+    // Data digitada como dd/mm/aaaa: só aceita números, e as barras entram sozinhas. isoNasc() = AAAA-MM-DD ou "" se inválida.
+    nasc.addEventListener("input", () => {
+      const d = nasc.value.replace(/\D/g, "").slice(0, 8);
+      nasc.value = d.length > 4 ? `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}` : d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+    });
+    const isoNasc = () => {
+      const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(nasc.value);
+      if (!m) return "";
+      const iso = `${m[3]}-${m[2]}-${m[1]}`, t = new Date(iso + "T00:00:00Z");
+      return !isNaN(t) && t.toISOString().slice(0, 10) === iso && iso >= "1900-01-01" && t <= new Date() ? iso : "";
+    };
+    nasc.addEventListener("blur", () => { err.textContent = nasc.value && !isoNasc() ? "Data de nascimento inválida." : ""; });
+    const check = () => { go.disabled = !(ok.checked && sec.value.trim() && nome.value.trim().length >= 3 && isoNasc() && fam()); };
     app.querySelectorAll("input").forEach(el => el.addEventListener("input", check));
     app.querySelectorAll("input").forEach(el => el.addEventListener("change", check));
     go.onclick = async () => {
@@ -131,7 +148,7 @@
       let body = null;
       try {
         const res = await fetch(API + "/entrar", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ uuid: novo, nome: nome.value.trim(), nascimento: nasc.value, secretaria: sec.value.trim(),
+          body: JSON.stringify({ uuid: novo, nome: nome.value.trim(), nascimento: isoNasc(), secretaria: sec.value.trim(),
                                  familiarizado: fam(), consentimento: true }) });
         try { body = await res.json(); } catch (e) {}
         if (body && body.erro === "067") { app.innerHTML = '<p class="warn">[067] Erro ao carregar o questionário</p>'; return; }
@@ -164,30 +181,85 @@
       const i = q.suggestions.findIndex(s => s.rank === r[`rank_${k}`]);
       if (i >= 0) itens[i] = toSide(r[`escolha_${k}`], r.metodo_A);
     }
-    return { itens, geral: toSide(r.geral, r.metodo_A), confirmado: true };
+    const mB = D.methods.find(m => m !== r.metodo_A);
+    return { itens, geral: toSide(r.geral, r.metodo_A), ordem: { A: r[`ordem_${r.metodo_A}`], B: r[`ordem_${mB}`] }, confirmado: true };
   }
 
-  function tutorial() {
-    progress.textContent = "Tutorial";
-    app.innerHTML = `<section class="panel">
-      <h2>Como responder</h2>
-      <ol>
-        <li>Cada tela mostra <b>um item e-Fisco</b> e os <b>itens Catmat</b> sugeridos para ele, em colunas, da maior para a menor similaridade (score de 0 a 100).</li>
+  // ---------------- tutorial (tela inicial e pop-up do cabeçalho) ----------------
+  // Diagramas com um exemplo ilustrativo (não é um item do questionário), montados com os mesmos estilos das telas.
+  function diagrams() {
+    const c = i => D.colors[i % D.colors.length];
+    const m = (i, a, t) => `<mark style="background:${rgba(c(i), a)};${a >= 0.5 ? "color:#000" : ""}">${esc(t)}</mark>`;
+    const n = k => `<span class="badge">${k}</span>`;
+    const line = (i, a, sug, v, qry) => `<div class="ln">${m(i, a, sug)} <span class="ar">←</span> <span class="v">(${v})</span> <span class="ar">−</span> ${m(i, a, qry)}</div>`;
+    const fake = sel => `<div class="cell demo-cell"${sel ? ' aria-pressed="true"' : ""}><div class="ph"></div><div class="ph short"></div><div class="ph"></div></div>`;
+    const d1 = `<figure class="diagram"><figcaption>Diagrama 1: como ler uma explicação</figcaption>
+      <div class="demo-grid">
+        <div class="cell demo-cell">
+          <div class="txt"><b>e-Fisco</b>${m(0, 1, "CANETA ESFEROGRÁFICA")}, TINTA ${m(1, .55, "AZUL")}, PONTA ${m(2, .2, "MÉDIA")} 1.0 MM ${n(1)}</div>
+          <div class="txt"><b>Catmat</b>${m(0, 1, "CANETA ESFEROGRÁFICA")}, MATERIAL: PLÁSTICO, COR TINTA: ${m(1, .55, "AZUL")}, ESCRITA: ${m(2, .2, "FINA")} ${n(2)}</div>
+          <div class="lat">${line(0, 1, "CANETA ESFEROGRÁFICA", "+18,2", "CANETA ESFEROGRÁFICA")}${line(1, .55, "AZUL", "+6,5", "AZUL")}${line(2, .2, "FINA", "−1,3", "MÉDIA")} ${n(3)}</div>
+        </div>
+        <ol class="legend">
+          <li>Termos com a <b>mesma cor</b> no item e-Fisco e no item Catmat estão relacionados.</li>
+          <li>Quanto <b>mais forte a cor</b>, maior a influência do termo na similaridade.</li>
+          <li>Cada linha resume uma relação: o número entre parênteses é o quanto ela <b>aumenta (+)</b> ou <b>diminui (−)</b> a pontuação de similaridade.</li>
+        </ol>
+      </div></figure>`;
+    const d2 = `<figure class="diagram"><figcaption>Diagrama 2: como escolher em cada item Catmat</figcaption>
+      <div class="demo-grid">
+        <div class="demo-matrix">
+          <div></div><div class="colhead">Item Catmat 1</div><div class="colhead">Item Catmat 2</div>
+          <div class="rowlabel">A</div>${fake(true)}${fake(false)}
+          <div class="rowlabel">B</div>${fake(false)}${fake(false)}
+          <div></div><div class="foot"><button type="button" tabindex="-1">Empate</button><button type="button" tabindex="-1">Não sei responder</button></div>
+          <div class="foot"><button type="button" tabindex="-1" aria-pressed="true">Empate</button><button type="button" tabindex="-1">Não sei responder</button> ${n(2)}</div>
+        </div>
+        <ol class="legend">
+          <li>No item Catmat 1, a pessoa <b>clicou na explicação A</b>, que ficou marcada com “✓ escolhida”.</li>
+          <li>No item Catmat 2, as duas explicações pareceram equivalentes, então ela usou <b>Empate</b>. Se não conseguir avaliar, use <b>Não sei responder</b>.</li>
+        </ol>
+      </div></figure>`;
+    const steps = ["Escolher A, B, Empate ou Não sei em cada item Catmat", "Responder sobre a ordem dos itens (explicações A e B)", "Responder a pergunta geral", "Revisar e confirmar"];
+    const d3 = `<figure class="diagram"><figcaption>Diagrama 3: o que fazer em cada tela</figcaption>
+      <div class="flow">${steps.map((t, i) => `<div class="step"><span class="badge">${i + 1}</span>${esc(t)}</div>`).join('<div class="arrow" aria-hidden="true">→</div>')}
+        <div class="arrow" aria-hidden="true">→</div><div class="step muted">Próximo item e-Fisco</div></div></figure>`;
+    return d1 + d2 + d3;
+  }
+  function tutorialBody() {
+    return `<ol>
+        <li>Cada tela mostra <b>um item e-Fisco</b> e os <b>itens Catmat</b> sugeridos para ele, em colunas, da maior para a menor similaridade (pontuação de 0 a 100).</li>
         <li>Para cada item Catmat há duas explicações, nas linhas <b>A</b> e <b>B</b>. Elas destacam os termos que mais influenciaram a similaridade.</li>
         <li>Termos com a <b>mesma cor</b> no item e-Fisco e no item Catmat estão relacionados entre si. Quanto mais forte a cor, maior a influência.</li>
-        <li>Abaixo dos textos, cada linha resume uma relação: <span class="fmt">termo Catmat ← (+X) − termo e-Fisco</span>. X é o quanto essa relação aumenta (+) ou diminui (−) o score. Uma linha com um lado só indica um termo que influenciou sozinho.</li>
+        <li>Abaixo dos textos, cada linha resume uma relação: <span class="fmt">termo Catmat ← (+X) − termo e-Fisco</span>. X é o quanto essa relação aumenta (+) ou diminui (−) a pontuação de similaridade. Uma linha com um lado só indica um termo que influenciou sozinho.</li>
         <li>Em cada coluna, <b>clique na explicação (A ou B)</b> que deixa mais claro por que aquele item Catmat é similar ao item e-Fisco. Se as duas forem equivalentes, use <b>Empate</b>; se não conseguir avaliar, use <b>Não sei responder</b>.</li>
-        <li>Depois, responda à pergunta geral sobre qual explicação foi melhor para o item e-Fisco como um todo.</li>
+        <li>Depois, diga se as explicações A e as explicações B deixam claro por que os itens Catmat podem ter sido sugeridos na ordem em que aparecem, e responda à pergunta geral sobre qual explicação foi melhor para o item e-Fisco como um todo.</li>
         <li>Ao final de cada tela, você verá um resumo das suas respostas para confirmar. Você pode voltar a itens anteriores e mudar respostas até finalizar o questionário.</li>
       </ol>
-      <p class="muted">As posições A e B mudam de um item e-Fisco para outro; não há uma resposta certa.</p>
-      <div class="row"><button type="button" class="primary" id="go">Começar</button></div>
-    </section>`;
+      ${diagrams()}
+      <p class="muted">Os diagramas usam um exemplo ilustrativo. As posições A e B mudam de um item e-Fisco para outro; não há uma resposta certa.</p>`;
+  }
+  function tutorial() {
+    progress.textContent = "Tutorial";
+    app.innerHTML = `<section class="panel"><h2>Como responder</h2>${tutorialBody()}
+      <div class="row"><button type="button" class="primary" id="go">Começar</button></div></section>`;
     document.getElementById("go").onclick = () => { st.stage = "q"; st.qi = 0; save(); render(); };
   }
+  function openTutorial() {
+    tutDlg.innerHTML = `<div class="dlg-head"><h2>Como responder</h2><button type="button" id="tut-close" aria-label="Fechar tutorial">Fechar ✕</button></div>${tutorialBody()}`;
+    document.getElementById("tut-close").onclick = () => tutDlg.close();
+    tutDlg.showModal();
+    tutDlg.scrollTop = 0;
+  }
+  tutBtn.onclick = () => { if (D) openTutorial(); };
+  tutDlg.addEventListener("click", e => { if (e.target === tutDlg) tutDlg.close(); }); // clique fora fecha
 
-  const ans = q => (st.answers[q.id] = st.answers[q.id] || { itens: q.suggestions.map(() => null), geral: null, confirmado: false });
-  const complete = a => a.itens.every(Boolean) && a.geral;
+  const ans = q => {
+    const a = (st.answers[q.id] = st.answers[q.id] || { itens: q.suggestions.map(() => null), geral: null, confirmado: false });
+    a.ordem = a.ordem || { A: null, B: null }; // respostas locais anteriores à pergunta sobre a ordem
+    return a;
+  };
+  const complete = a => a.itens.every(Boolean) && a.geral && a.ordem && a.ordem.A && a.ordem.B;
 
   function question() {
     const q = D.queries[st.qi], a = ans(q), mA = st.sides[q.id], mB = D.methods.find(m => m !== mA);
@@ -197,6 +269,8 @@
       <p><b>${esc(Q_ITEM)}</b> <span class="muted">Clique na célula da explicação escolhida, ou use os botões abaixo de cada coluna.</span></p>
       <p class="narrow">Sua tela é estreita: role para o lado para ver todos os itens Catmat.</p>
       ${matrix(q, a, mA, mB, false)}
+      ${["A", "B"].map(side => `<fieldset><legend>${esc(Q_ORDEM(side))}</legend><div class="opts">${ORDEM.map(([c, l]) =>
+        `<label><input type="radio" name="ordem_${side}" value="${c}" ${a.ordem[side] === c ? "checked" : ""}> ${l}</label>`).join("")}</div></fieldset>`).join("")}
       <fieldset><legend>${esc(Q_GERAL)}</legend><div class="opts">${CHOICES.map(([c, l]) =>
         `<label><input type="radio" name="geral" value="${c}" ${a.geral === c ? "checked" : ""}> ${l}</label>`).join("")}</div></fieldset>
       <div class="row end"><button type="button" id="prev" ${st.qi === 0 ? "disabled" : ""}>← Item e-Fisco anterior</button>
@@ -208,8 +282,10 @@
       el.onkeydown = e => { if (el.classList.contains("cell") && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); pick(el); } };
     });
     app.querySelectorAll('input[name="geral"]').forEach(el => el.onchange = () => { a.geral = el.value; a.confirmado = false; save(); upd(); });
+    for (const side of ["A", "B"])
+      app.querySelectorAll(`input[name="ordem_${side}"]`).forEach(el => el.onchange = () => { a.ordem[side] = el.value; a.confirmado = false; save(); upd(); });
     const upd = () => {
-      const miss = a.itens.filter(x => !x).length + (a.geral ? 0 : 1);
+      const miss = a.itens.filter(x => !x).length + (a.geral ? 0 : 1) + (a.ordem.A ? 0 : 1) + (a.ordem.B ? 0 : 1);
       document.getElementById("rev").disabled = miss > 0;
       document.getElementById("miss").textContent = miss ? `${miss} resposta(s) pendente(s)` : "";
     };
@@ -221,9 +297,9 @@
   // Matriz 2 (A/B) x itens Catmat. ro = só leitura (página /answers).
   function matrix(q, a, mA, mB, ro) {
     let h = `<div class="scroll"><div class="matrix${ro ? " ro" : ""}"><div></div>`;
-    h += q.suggestions.map((s, i) => `<div class="colhead">Item Catmat ${i + 1} <span>· score ${num1(s.score)}</span></div>`).join("");
+    h += q.suggestions.map((s, i) => `<div class="colhead">Item Catmat ${i + 1} <span>· Similaridade: ${num1(s.score)}</span></div>`).join("");
     for (const [side, m] of [["A", mA], ["B", mB]]) {
-      h += `<div class="rowlabel">Explicação ${side}</div>`;
+      h += `<div class="rowlabel">Método ${side}</div>`;
       h += q.suggestions.map((s, i) => cell(q, s, m, side, i, a.itens[i] === side, ro)).join("");
     }
     h += `<div></div>` + q.suggestions.map((s, i) => `<div class="foot">${CHOICES.slice(2).map(([c, l]) =>
@@ -237,6 +313,8 @@
       <div class="box"><div class="lbl">Item e-Fisco</div><div class="txt">${esc(q.text)}</div></div>
       <table class="review"><thead><tr><th>Pergunta</th><th>Sua resposta</th></tr></thead><tbody>
         ${q.suggestions.map((s, i) => `<tr><td>Item Catmat ${i + 1}: ${esc(s.text.length > 90 ? s.text.slice(0, 90) + "…" : s.text)}</td><td><b>${LABEL[a.itens[i]]}</b></td></tr>`).join("")}
+        <tr><td>Ordem: explicações A</td><td><b>${ORDEM_LABEL[a.ordem.A]}</b></td></tr>
+        <tr><td>Ordem: explicações B</td><td><b>${ORDEM_LABEL[a.ordem.B]}</b></td></tr>
         <tr><td>Geral</td><td><b>${LABEL[a.geral]}</b></td></tr></tbody></table>
       <div class="row"><button type="button" id="back">Voltar e alterar</button><button type="button" class="primary" id="ok">Confirmar</button></div>
     </section>`;
@@ -245,7 +323,8 @@
       const mA = st.sides[q.id], mB = D.methods.find(m => m !== mA), res = c => (c === "A" ? mA : c === "B" ? mB : c);
       a.confirmado = true;
       send({ tipo: "resposta", uuid: st.uuid, query_id: q.id, metodo_A: mA,
-             itens: q.suggestions.map((s, i) => ({ rank: s.rank, escolha: res(a.itens[i]) })), geral: res(a.geral) });
+             itens: q.suggestions.map((s, i) => ({ rank: s.rank, escolha: res(a.itens[i]) })), geral: res(a.geral),
+             ordem_m1: a.ordem[toSide("m1", mA)], ordem_m2: a.ordem[toSide("m2", mA)] });
       reviewing = false;
       if (st.qi < D.queries.length - 1) st.qi++; else st.stage = "final";
       save(); render(); scrollTo(0, 0);
@@ -275,6 +354,7 @@
   }
 
   function render() {
+    tutBtn.hidden = st.stage === "welcome" || st.stage === "tutorial";
     ({ welcome, tutorial, q: question, final, done })[st.stage]();
     showNet();
   }
@@ -298,14 +378,16 @@
         <div class="box"><div class="lbl">Item e-Fisco</div><div class="txt">${esc(q.text)}</div></div>`;
       if (!r) { h += `<p class="warn">Sem resposta registrada.</p></section>`; return; }
       const a = rowToAnswer(q, r), mB = D.methods.find(m => m !== r.metodo_A);
-      h += matrix(q, a, r.metodo_A, mB, true) + `<p><b>${esc(Q_GERAL)}</b> ${esc(LABEL[a.geral] || "—")}</p></section>`;
+      h += matrix(q, a, r.metodo_A, mB, true)
+        + ["A", "B"].map(side => `<p><b>${esc(Q_ORDEM(side))}</b> ${esc(ORDEM_LABEL[a.ordem[side]] || "—")}</p>`).join("")
+        + `<p><b>${esc(Q_GERAL)}</b> ${esc(LABEL[a.geral] || "—")}</p></section>`;
     });
     app.innerHTML = h;
   }
 
   fetch("/data.json").then(r => r.json()).then(d => {
     D = d;
-    if (ANSWERS) { answersPage(); flush(); return; }
+    if (ANSWERS) { tutBtn.hidden = false; answersPage(); flush(); return; }
     // Já finalizou e não há envio pendente: vai direto para a revisão.
     if (st.stage === "done" && !st.pending.length) { location.replace("/answers"); return; }
     render(); flush();

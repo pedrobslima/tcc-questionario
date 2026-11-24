@@ -12,6 +12,7 @@
  *   POST /api/enviar     {tipo: "resposta" | "finalizar", uuid, ...} (fila do site; só sai da fila com {ok:true})
  */
 const ESCOLHAS = ["m1", "m2", "empate", "nao_sei"];
+const ORDEM = ["sim", "parcial", "nao", "nao_sei"];
 const UUID_RE = /^[0-9a-f-]{16,64}$/i;
 
 const json = (status, body) => new Response(JSON.stringify(body), {
@@ -55,7 +56,7 @@ async function respostas(url, db) {
   const part = await db.prepare("SELECT finalizado_em FROM participantes WHERE uuid = ?").bind(uuid).first();
   if (!part) return erro(404, "participante desconhecido");
   const { results } = await db.prepare(
-    "SELECT query_id, metodo_A, rank_1, escolha_1, rank_2, escolha_2, rank_3, escolha_3, geral, atualizado_em FROM respostas WHERE uuid = ? ORDER BY query_id"
+    "SELECT query_id, metodo_A, rank_1, escolha_1, rank_2, escolha_2, rank_3, escolha_3, geral, ordem_m1, ordem_m2, atualizado_em FROM respostas WHERE uuid = ? ORDER BY query_id"
   ).bind(uuid).all();
   return json(200, { ok: true, finalizado: !!part.finalizado_em, respostas: results });
 }
@@ -77,15 +78,17 @@ async function enviar(req, db) {
     if (!Number.isInteger(qid)) return erro(400, "query_id inválido");
     if (!["m1", "m2"].includes(p.metodo_A)) return erro(400, "metodo_A inválido");
     if (!ESCOLHAS.includes(p.geral) || !itens.every(i => i && ESCOLHAS.includes(i.escolha))) return erro(400, "escolha inválida");
+    if (!ORDEM.includes(p.ordem_m1) || !ORDEM.includes(p.ordem_m2)) return erro(400, "resposta sobre a ordem inválida");
     const it = i => itens[i] ? [Number(itens[i].rank), itens[i].escolha] : [null, null];
     await db.prepare(
-      `INSERT INTO respostas (uuid, query_id, metodo_A, rank_1, escolha_1, rank_2, escolha_2, rank_3, escolha_3, geral, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO respostas (uuid, query_id, metodo_A, rank_1, escolha_1, rank_2, escolha_2, rank_3, escolha_3, geral, ordem_m1, ordem_m2, atualizado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(uuid, query_id) DO UPDATE SET
          metodo_A = excluded.metodo_A, rank_1 = excluded.rank_1, escolha_1 = excluded.escolha_1,
          rank_2 = excluded.rank_2, escolha_2 = excluded.escolha_2, rank_3 = excluded.rank_3,
-         escolha_3 = excluded.escolha_3, geral = excluded.geral, atualizado_em = excluded.atualizado_em`
-    ).bind(uuid, qid, p.metodo_A, ...it(0), ...it(1), ...it(2), p.geral, now).run();
+         escolha_3 = excluded.escolha_3, geral = excluded.geral, ordem_m1 = excluded.ordem_m1,
+         ordem_m2 = excluded.ordem_m2, atualizado_em = excluded.atualizado_em`
+    ).bind(uuid, qid, p.metodo_A, ...it(0), ...it(1), ...it(2), p.geral, p.ordem_m1, p.ordem_m2, now).run();
     return json(200, { ok: true });
   }
 
