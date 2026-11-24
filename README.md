@@ -1,7 +1,7 @@
 # tcc-questionario
 
 Questionário A/B, no formato "matriz completa": LEMON + correspondência (m1) x PINE do TCC, Grupo cosseno th=0.5 top3 v2 (m2).
-É um site estático (`public/`) servido pela Cloudflare (Workers com static assets). As respostas vão para uma planilha Google via Apps Script.
+É um site estático (`public/`) servido pela Cloudflare (Workers com static assets). As respostas vão para um banco Cloudflare D1.
 
 ## 1. Gerar os dados
 Execute a partir de `~/pog/tcc`:
@@ -10,38 +10,46 @@ Execute a partir de `~/pog/tcc`:
 
 O script gera `public/data.json` com 20 itens e-Fisco × 3 itens Catmat e top 3 por explicação. O mapeamento m1/m2 → método fica no próprio script.
 
-## 2. Planilha + Apps Script
-1. Crie uma planilha no Google Sheets e abra **Extensões → Apps Script**.
-2. Cole o conteúdo de `apps-script/Code.gs` e salve.
-3. Vá em **Implantar → Nova implantação → Tipo: App da Web**. Use **Executar como: eu** e **Quem pode acessar: qualquer pessoa**.
-4. Copie a URL (`https://script.google.com/macros/s/.../exec`) para `public/config.js` (`endpoint`).
-5. Se mudar o `Code.gs`, faça uma nova versão em **Gerenciar implantações** para manter a mesma URL.
+## 2. Banco (Cloudflare D1)
+As respostas são gravadas pelo Worker (`src/worker.js`, rota `POST /api/enviar`) num banco D1. O esquema está em `migrations/`.
+Os comandos usam o Node do nvm (`source ~/.nvm/nvm.sh`) e rodam a partir de `tcc-questionario/`:
 
-As abas `participantes` e `respostas` são criadas no primeiro envio.
+    npx wrangler login
+    npx wrangler d1 create tcc-questionario        # copie o database_id para wrangler.jsonc
+    npx wrangler d1 migrations apply tcc-questionario --remote
 
-## 3. Deploy na Cloudflare (Workers com static assets)
-A configuração fica em `wrangler.jsonc`: um Worker sem código que serve `public/`. O `public/_headers` define `no-cache` para o `data.json`.
+O site só tira um envio da fila local quando o Worker responde `{ok:true}`. Se houver qualquer falha, aparece um aviso no canto da tela com o motivo.
+
+## 3. Deploy na Cloudflare (Worker com static assets)
+`wrangler.jsonc` serve `public/` como arquivos estáticos e manda `/api/*` para o Worker. `public/_headers` define `no-cache` para o `data.json`.
 
 Pelo painel:
 1. Abra **Workers & Pages → Create → Import a repository** e escolha este repositório.
 2. Deixe o **Build command** vazio e use o **Deploy command** `npx wrangler deploy`.
 3. Cada push na `main` dispara um deploy novo. A URL fica no formato `tcc-questionario.<subdominio>.workers.dev`.
 
-Pela linha de comando (requer Node):
+Pela linha de comando:
 
-    npx wrangler login
     npx wrangler deploy
 
-## Teste local
+## Exportar os resultados
 
-    python -m http.server -d tcc-questionario/public 8000
+    npx wrangler d1 export tcc-questionario --remote --output respostas.sql                                  # backup completo
+    npx wrangler d1 execute tcc-questionario --remote --json --command "SELECT * FROM respostas" > respostas.json
+
+## Teste local
+Este teste roda o site e o Worker com um D1 local, que fica em `.wrangler/` e está no `.gitignore`:
+
+    npx wrangler d1 migrations apply tcc-questionario --local
+    npx wrangler dev                                  # http://localhost:8787
 
 Para recomeçar como um participante novo, apague a chave `tcc-questionario-v1` do localStorage.
 
-## Dados gravados
+## Dados gravados (tabelas do D1)
 - **participantes:** uuid, secretaria, familiarizado (sim/nao), consentimento, criado_em, finalizado_em.
 - **respostas:** uma linha por (uuid, item e-Fisco).
   - `metodo_A` diz qual método ficou no lado A.
   - `escolha_i` e `geral` valem `m1`, `m2`, `empate` ou `nao_sei`, já convertidos do lado A/B para o método.
   - `rank_i` é o rank original do item Catmat.
   - Se a pessoa voltar e mudar uma resposta, a mesma linha é atualizada.
+  - Datas em ISO 8601 (UTC).

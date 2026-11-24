@@ -1,4 +1,2 @@
-// URL do Web App do Google Apps Script (ver README.md, passo 2). Vazio = respostas ficam só na fila local.
-window.QUESTIONARIO_CONFIG = {
-  endpoint: "",
-};
+// Rota do Worker que grava as respostas no D1 (mesma origem do site). Vazio = respostas ficam só na fila local.
+window.QUESTIONARIO_CONFIG = { endpoint: "/api/enviar" };

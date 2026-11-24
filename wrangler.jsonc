@@ -1,6 +1,16 @@
-// Cloudflare Workers com static assets: serve a pasta public/ sem código de Worker.
+// Cloudflare Worker com static assets: public/ é servido direto; /api/* vai para src/worker.js (grava no D1).
 {
   "name": "tcc-questionario",
+  "main": "src/worker.js",
   "compatibility_date": "2025-09-01",
-  "assets": { "directory": "./public" }
+  "assets": { "directory": "./public", "run_worker_first": ["/api/*"] },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tcc-questionario",
+      // Preencher com o id gerado por `npx wrangler d1 create tcc-questionario` (ver README).
+      "database_id": "PREENCHER",
+      "migrations_dir": "migrations"
+    }
+  ]
 }

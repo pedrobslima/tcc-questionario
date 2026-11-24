@@ -19,24 +19,32 @@
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
 
   // ---------------- envio ----------------
-  let flushing = false;
+  // Fila em ordem: um envio só sai da fila quando o servidor responde {ok:true}.
+  // Qualquer outra coisa (sem rede, erro 4xx/5xx, resposta inesperada) para a fila e mostra o motivo.
+  let flushing = false, lastError = "";
   function send(payload) { st.pending.push(Object.assign({ enviado_em: new Date().toISOString() }, payload)); save(); flush(); }
   async function flush() {
     if (flushing) return;
     flushing = true;
-    try {
-      while (st.pending.length && ENDPOINT) {
-        await fetch(ENDPOINT, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(st.pending[0]) });
-        st.pending.shift(); save();
-      }
-    } catch (e) { /* sem rede: fica na fila e tenta de novo depois */ }
+    lastError = "";
+    while (st.pending.length && ENDPOINT) {
+      let res, body = null;
+      try {
+        res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(st.pending[0]) });
+      } catch (e) { lastError = "sem conexão com o servidor"; break; }
+      try { body = await res.json(); } catch (e) { /* resposta não-JSON */ }
+      if (res.ok && body && body.ok === true) { st.pending.shift(); save(); continue; }
+      lastError = `servidor recusou (${res.status}${body && body.erro ? ": " + body.erro : ""})`;
+      break;
+    }
     flushing = false;
     showNet();
   }
   function showNet() {
     const n = st.pending.length;
     net.hidden = n === 0;
-    net.innerHTML = n ? `${n} resposta(s) ainda não enviada(s). <button type="button" id="retry">Tentar de novo</button>${ENDPOINT ? "" : ' <span class="warn">(endpoint não configurado)</span>'}` : "";
+    const why = !ENDPOINT ? "endpoint não configurado" : lastError;
+    net.innerHTML = n ? `${n} resposta(s) ainda não enviada(s).${why ? ` <span class="warn">(${esc(why)})</span>` : ""} <button type="button" id="retry">Tentar de novo</button>` : "";
     const b = document.getElementById("retry"); if (b) b.onclick = flush;
   }
   window.addEventListener("online", flush);
