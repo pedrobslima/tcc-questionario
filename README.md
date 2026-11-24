@@ -1,7 +1,7 @@
 # tcc-questionario
 
 Questionário A/B, no formato "matriz completa": LEMON + correspondência (m1) x PINE do TCC, Grupo cosseno th=0.5 top3 v2 (m2).
-É um site estático (`public/`) na Vercel. As respostas vão para uma planilha Google via Apps Script.
+É um site estático (`public/`) servido pela Cloudflare (Workers com static assets). As respostas vão para uma planilha Google via Apps Script.
 
 ## 1. Gerar os dados
 Execute a partir de `~/pog/tcc`:
@@ -19,13 +19,18 @@ O script gera `public/data.json` com 20 itens e-Fisco × 3 itens Catmat e top 3 
 
 As abas `participantes` e `respostas` são criadas no primeiro envio.
 
-## 3. Deploy na Vercel
-Execute a partir de `tcc-questionario/`:
+## 3. Deploy na Cloudflare (Workers com static assets)
+A configuração fica em `wrangler.jsonc`: um Worker sem código que serve `public/`. O `public/_headers` define `no-cache` para o `data.json`.
 
-    npx vercel        # primeira vez: login e vínculo do projeto
-    npx vercel --prod
+Pelo painel:
+1. Abra **Workers & Pages → Create → Import a repository** e escolha este repositório.
+2. Deixe o **Build command** vazio e use o **Deploy command** `npx wrangler deploy`.
+3. Cada push na `main` dispara um deploy novo. A URL fica no formato `tcc-questionario.<subdominio>.workers.dev`.
 
-Também funciona importando a pasta pelo painel da Vercel, sem framework e com output `public`.
+Pela linha de comando (requer Node):
+
+    npx wrangler login
+    npx wrangler deploy
 
 ## Teste local
 
