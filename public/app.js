@@ -24,6 +24,7 @@
   const Q_ORDEM = side => `As explicações ${side} deixam claro por que os itens Catmat podem ter sido sugeridos na ordem atual?`;
   const ORDEM = [["sim", "Sim, para todas as correspondências"], ["parcial", "Parcialmente, nem todas as correspondências"], ["nao", "Não ficou claro para nenhuma"], ["nao_sei", "Não sei responder"]];
   const ORDEM_LABEL = Object.fromEntries(ORDEM);
+  const MEDAL = ["🥇", "🥈", "🥉"]; // à esquerda de "Item Catmat X", pela posição na lista de sugestões
   const app = document.getElementById("app"), progress = document.getElementById("progress"), net = document.getElementById("net");
   const tutBtn = document.getElementById("tut-btn"), tutDlg = document.getElementById("tut-dlg");
   let D = null, reviewing = false;
@@ -218,7 +219,7 @@
     const d2 = `<figure class="diagram"><figcaption>Diagrama 2: como escolher em cada item Catmat</figcaption>
       <div class="demo-grid">
         <div class="demo-matrix">
-          <div></div><div class="colhead">Item Catmat 1</div><div class="colhead">Item Catmat 2</div>
+          <div></div><div class="colhead"><span class="medal" aria-hidden="true">${MEDAL[0]}</span>Item Catmat 1</div><div class="colhead"><span class="medal" aria-hidden="true">${MEDAL[1]}</span>Item Catmat 2</div>
           <div class="rowlabel">A</div>${fake(true)}${fake(false)}
           <div class="rowlabel">B</div>${fake(false)}${fake(false)}
           <div></div><div class="foot"><button type="button" tabindex="-1">Empate</button><button type="button" tabindex="-1">Não sei responder</button></div>
@@ -312,8 +313,8 @@
 
   // Matriz 2 (A/B) x itens Catmat. ro = só leitura (página /answers).
   function matrix(q, a, mA, mB, ro) {
-    let h = `<div class="scroll"><div class="matrix${ro ? " ro" : ""}"><div></div>`;
-    h += q.suggestions.map((s, i) => `<div class="colhead">Item Catmat ${i + 1} <span>· Similaridade: ${num1(s.score)}</span></div>`).join("");
+    let h = `<div class="scroll"><div class="matrix${ro ? " ro" : ""}"><div class="vrule r1" aria-hidden="true"></div><div class="vrule r2" aria-hidden="true"></div><div></div>`;
+    h += q.suggestions.map((s, i) => `<div class="colhead"><span class="medal" aria-hidden="true">${MEDAL[i] || ""}</span>Item Catmat ${i + 1} <span>· Similaridade: ${num1(s.score)}</span></div>`).join("");
     for (const [side, m] of [["A", mA], ["B", mB]]) {
       h += `<div class="rowlabel">Método ${side}</div>`;
       h += q.suggestions.map((s, i) => cell(q, s, m, side, i, a.itens[i] === side, ro)).join("");

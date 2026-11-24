@@ -39,7 +39,7 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2
 .box { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
 .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 500; }
 .scroll { overflow-x: auto; min-width: 0; }
-.matrix { display: grid; gap: 8px; grid-template-columns: 34px repeat(3, minmax(300px, 1fr)); min-width: 1000px; }
+.matrix { display: grid; gap: 8px 18px; grid-template-columns: 34px repeat(3, minmax(300px, 1fr)); min-width: 1000px; }
 .rowlabel { writing-mode: vertical-rl; transform: rotate(180deg); display: flex; align-items: center; justify-content: center; background: var(--soft); border-radius: 6px; font-weight: 600; font-size: 13px; }
 .colhead { font-weight: 600; font-size: 13px; padding: 2px 2px 0; }
 .colhead span { color: var(--muted); font-weight: 400; font-family: var(--font-mono); font-size: 12px; }
@@ -104,3 +104,9 @@ label.field.coment { margin-top: 10px; font-weight: 500; }
 label.field.coment textarea { font-weight: 400; }
 .coment-txt { white-space: pre-wrap; }
 textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; resize: vertical; }
+.colhead .medal { font-size: 16px; margin-right: 4px; font-family: inherit; color: inherit; }
+/* linhas discretas entre as colunas da matriz (no meio do espaço de 18px entre colunas) */
+.matrix { position: relative; --colw: calc((100% - 34px - 3 * 18px) / 3); }
+.vrule { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); pointer-events: none; }
+.vrule.r1 { left: calc(34px + 18px + var(--colw) + 9px); }
+.vrule.r2 { left: calc(34px + 18px + 2 * var(--colw) + 18px + 9px); }
