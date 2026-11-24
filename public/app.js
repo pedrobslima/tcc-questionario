@@ -115,7 +115,13 @@
     app.innerHTML = `<section class="panel">
       <h2>Bem-vindo(a)</h2>
       <p>Esta pesquisa faz parte de um trabalho de conclusão de curso sobre explicações para a similaridade entre itens de compras públicas. Você vai comparar duas explicações (A e B) para itens Catmat sugeridos a partir de itens do e-Fisco.</p>
-      <p>Pesquisador responsável: <b>Pedro Barros de Souza Lima</b>. Contato: <a href="mailto:pbsl@cin.ufpe.br">pbsl@cin.ufpe.br</a>.</p>
+      <details class="about" open><summary>Sobre a pesquisa</summary><div class="about-body">
+        <p>Para montar um mapa de preços, é preciso encontrar, em catálogos como o Catmat, itens equivalentes ao que vai ser comprado. Essa busca toma tempo, e já existem sistemas que sugerem automaticamente os itens mais parecidos. Porém, esses sistemas costumam não mostrar <b>por que</b> sugeriram cada item, e quem usa a ferramenta precisa decidir se pode confiar na sugestão.</p>
+        <p>Esta pesquisa testa formas de explicar essas sugestões, destacando quais palavras dos dois itens mais pesaram na decisão do sistema. Suas respostas vão ajudar a descobrir qual forma de explicar é mais fácil de entender e mais útil para conferir se o sistema acertou. Não é um teste de conhecimento: não há respostas certas ou erradas.</p>
+        <p>O projeto foi baseado no meu trabalho para o sistema <b>Mapear</b> do governo de PE, como estagiário da Secretaria Executiva de Transformação Digital.</p>
+        <p class="muted">Trabalho: “Aplicação de Interpretabilidade para Correspondências entre Itens em Mapas de Preços para Compras Públicas” (Título provisório).</p>
+      </div></details>
+      <p>Pesquisador responsável: <b>Pedro Barros de Souza Lima</b>, estudante de graduação em Ciência da Computação no Centro de Informática (CIn) da Universidade Federal de Pernambuco (UFPE). Contato: <a href="mailto:pbsl@cin.ufpe.br">pbsl@cin.ufpe.br</a>.</p>
       <p class="muted">São ${D.queries.length} itens e-Fisco, cada um com ${D.queries[0].suggestions.length} itens Catmat. Recomenda-se usar um computador (a tela precisa de pelo menos 1000 px de largura).</p>
       <div class="box notice"><div class="lbl">Antes de começar</div><ul>
         <li>O preenchimento deve levar no máximo <b>10 minutos</b>.</li>

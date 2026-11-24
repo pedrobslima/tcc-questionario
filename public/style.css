@@ -110,3 +110,6 @@ textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px s
 .vrule { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); pointer-events: none; }
 .vrule.r1 { left: calc(34px + 18px + var(--colw) + 9px); }
 .vrule.r2 { left: calc(34px + 18px + 2 * var(--colw) + 18px + 9px); }
+details.about { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+.about-body { display: grid; gap: 8px; margin-top: 8px; }
+details.about summary { font-weight: 600; cursor: pointer; }
